@@ -1,0 +1,22 @@
+{
+  "name": "newworld",
+  "version": "1.0.0",
+  "description": "Agent IA personnel - V0 : agent local avec tool calling Git",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@google/genai": "^2.19.0",
+    "dotenv": "^17.4.2"
+  }
+}
