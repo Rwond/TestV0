@@ -41,3 +41,38 @@ export function runGitDiff(args: { cached?: boolean }): string {
     return `Erreur lors de l'exécution de git diff: ${message}`;
   }
 }
+
+// Même schéma que gitDiffDeclaration : décrire l'outil, pas encore l'exécuter.
+export const gitLogDeclaration: FunctionDeclaration = {
+  name: "git_log",
+  description:
+    "Liste les derniers commits du dépôt git courant (hash court + message), du plus récent au plus ancien. " +
+    "Utilise cet outil pour résumer l'historique récent des commits.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      count: {
+        type: Type.NUMBER,
+        description: "Nombre de commits à afficher. Par défaut: 5.",
+      },
+    },
+  },
+};
+
+export function runGitLog(args: { count?: number }): string {
+  // On clamp le nombre pour éviter un input absurde (0, négatif, énorme...),
+  // même si args vient d'un LLM en principe "de confiance" ici.
+  const count = Math.min(Math.max(args.count ?? 5, 1), 50);
+  const gitArgs = ["log", `-n`, String(count), "--oneline"];
+
+  try {
+    const output = execFileSync("git", gitArgs, {
+      cwd: process.cwd(),
+      encoding: "utf-8",
+    });
+    return output.trim() === "" ? "(aucun commit trouvé)" : output;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return `Erreur lors de l'exécution de git log: ${message}`;
+  }
+}
