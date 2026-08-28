@@ -8,4 +8,5 @@ export const ai = new GoogleGenAI({
 });
 
 // Modèle gratuit (tier gratuit Google AI Studio), déjà utilisé dans MyBiblioAI.
+// (petit changement ici juste pour avoir un vrai diff à tester à l'étape 4)
 export const MODEL = "gemini-flash-lite-latest";
