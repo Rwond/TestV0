@@ -1,5 +1,5 @@
 import type OpenAI from "openai";
-import { ai, MODEL } from "./openrouter.js";
+import { ai, MODEL } from "./gemini.js";
 import { toolDeclarations, executeTool } from "./tools/index.js";
 
 // Garde-fou : si jamais le LLM redemande des outils indéfiniment, on arrête
@@ -7,12 +7,10 @@ import { toolDeclarations, executeTool } from "./tools/index.js";
 // des appels API pour rien).
 const MAX_TURNS = 5;
 
-// GLM-4.6 est un modèle "raisonneur" : il consomme des tokens de réflexion
-// avant de répondre. Un max_tokens trop bas coupe la réponse en plein milieu.
-// ⚠️ Le compte OpenRouter utilisé ici a un solde très limité (facturé à l'usage,
-// pas gratuit) : une valeur trop haute fait échouer l'appel avec une erreur 402
-// "requires more credits". Ajuste ce chiffre à la hausse une fois le compte crédité.
-const MAX_TOKENS = 400;
+// Gemini est aussi un modèle "raisonneur" : il consomme des tokens de réflexion
+// (invisibles dans la réponse) avant de répondre. Le tier gratuit n'a pas de
+// souci de crédits (contrairement à OpenRouter avant), donc on peut rester généreux.
+const MAX_TOKENS = 1024;
 
 // OpenRouter (comme l'API OpenAI) répond parfois par une erreur transitoire en
 // cas de forte demande sur le modèle. On réessaie quelques fois avec un court
