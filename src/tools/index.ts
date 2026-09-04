@@ -1,6 +1,13 @@
 import type OpenAI from "openai";
 import { gitDiffDeclaration, runGitDiff, gitLogDeclaration, runGitLog } from "./git.js";
-import { readFileDeclaration, runReadFile } from "./files.js";
+import {
+  readFileDeclaration,
+  runReadFile,
+  listDirDeclaration,
+  runListDir,
+  writeFileDeclaration,
+  runWriteFile,
+} from "./files.js";
 
 // La liste des déclarations envoyées au LLM à chaque appel.
 // Ajouter un outil plus tard = l'ajouter ici.
@@ -8,6 +15,8 @@ export const toolDeclarations: OpenAI.Chat.ChatCompletionTool[] = [
   gitDiffDeclaration,
   gitLogDeclaration,
   readFileDeclaration,
+  listDirDeclaration,
+  writeFileDeclaration,
 ];
 
 // Le "dispatch" : à partir du nom + des arguments JSON demandés par le LLM,
@@ -27,6 +36,10 @@ export function executeTool(name: string, argsJson: string): string {
       return runGitLog(args as { count?: number });
     case "read_file":
       return runReadFile(args as { path: string });
+    case "list_dir":
+      return runListDir(args as { path?: string });
+    case "write_file":
+      return runWriteFile(args as { path: string; content: string; overwrite?: boolean });
     default:
       return `Erreur: outil inconnu "${name}"`;
   }
