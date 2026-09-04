@@ -41,43 +41,52 @@ async function chatWithRetry(
   throw new Error("chatWithRetry: aucune tentative n'a abouti");
 }
 
-export async function runAgent(userMessage: string): Promise<string> {
-  // L'historique complet de la conversation. On le fait grossir à chaque tour.
-  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    { role: "user", content: userMessage },
-  ];
+// Une "session" garde l'historique complet de la conversation en mémoire
+// (dans la fermeture de send()) d'un appel à l'autre — indispensable pour un
+// vrai dialogue en boucle (REPL) où chaque message doit se souvenir des
+// précédents. Cette mémoire ne vit que le temps du process (rien sur disque).
+export function createAgentSession() {
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
-  for (let turn = 1; turn <= MAX_TURNS; turn++) {
-    const response = await chatWithRetry(messages);
-    const message = response.choices[0].message;
-
-    // Cas de sortie : le LLM a répondu en texte, pas en demande d'outil.
-    // La boucle s'arrête ici.
-    if (!message.tool_calls || message.tool_calls.length === 0) {
-      return message.content ?? "(réponse vide)";
-    }
-
-    console.log(
-      `\n[agent] tour ${turn} : le LLM demande -> ${message.tool_calls.map((c) => c.function.name).join(", ")}`
-    );
-
-    // On rejoue exactement le tour "assistant" (texte éventuel + demandes
-    // d'outils) dans l'historique, pour que le modèle se souvienne de ce
-    // qu'il a demandé — l'API OpenAI l'exige tel quel avant les tool_result.
-    messages.push(message);
-
-    // On exécute réellement chaque outil demandé, et on ajoute chaque résultat
-    // comme un message "tool" séparé (convention OpenAI, un par tool_call.id).
-    for (const call of message.tool_calls) {
-      const output = await executeTool(call.function.name, call.function.arguments);
-      console.log(`[agent]   -> "${call.function.name}" a renvoyé ${output.length} caractères`);
-      messages.push({
-        role: "tool",
-        tool_call_id: call.id,
-        content: output,
-      });
-    }
+  async function send(userMessage: string): Promise<string> {
+    messages.push({ role: "user", content: userMessage });
+    return runTurns();
   }
 
-  return "(nombre maximum d'allers-retours atteint sans réponse finale)";
+  async function runTurns(): Promise<string> {
+    for (let turn = 1; turn <= MAX_TURNS; turn++) {
+      const response = await chatWithRetry(messages);
+      const message = response.choices[0].message;
+
+      if (!message.tool_calls || message.tool_calls.length === 0) {
+        messages.push(message); // garde la réponse finale dans l'historique aussi
+        return message.content ?? "(réponse vide)";
+      }
+
+      console.log(
+        `\n[agent] tour ${turn} : le LLM demande -> ${message.tool_calls.map((c) => c.function.name).join(", ")}`
+      );
+
+      messages.push(message);
+
+      for (const call of message.tool_calls) {
+        const output = await executeTool(call.function.name, call.function.arguments);
+        console.log(`[agent]   -> "${call.function.name}" a renvoyé ${output.length} caractères`);
+        messages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          content: output,
+        });
+      }
+    }
+    return "(nombre maximum d'allers-retours atteint sans réponse finale)";
+  }
+
+  return { send };
+}
+
+// Conservé pour compatibilité (usage ponctuel, une seule question) : crée une
+// session à usage unique. Le REPL, lui, utilise createAgentSession() directement.
+export async function runAgent(userMessage: string): Promise<string> {
+  return createAgentSession().send(userMessage);
 }

@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
-import { createInterface } from "node:readline/promises";
 import type OpenAI from "openai";
+import { rl } from "../cli.js";
 
 export const runCommandDeclaration: OpenAI.Chat.ChatCompletionTool = {
   type: "function",
@@ -28,14 +28,9 @@ export const runCommandDeclaration: OpenAI.Chat.ChatCompletionTool = {
 // dans les deux cas, ça arrive ici comme du texte tapé dans le terminal — le
 // code n'a pas besoin de "comprendre" la voix, Windows s'en charge tout seul.
 async function askConfirmation(question: string): Promise<boolean> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    const answer = await rl.question(question);
-    const normalized = answer.trim().toLowerCase();
-    return ["oui", "o", "yes", "y"].includes(normalized);
-  } finally {
-    rl.close();
-  }
+  const answer = await rl.question(question);
+  const normalized = answer.trim().toLowerCase();
+  return ["oui", "o", "yes", "y"].includes(normalized);
 }
 
 export async function runCommand(args: { command: string }): Promise<string> {
