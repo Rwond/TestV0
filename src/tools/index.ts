@@ -8,6 +8,7 @@ import {
   writeFileDeclaration,
   runWriteFile,
 } from "./files.js";
+import { runCommandDeclaration, runCommand } from "./terminal.js";
 
 // La liste des déclarations envoyées au LLM à chaque appel.
 // Ajouter un outil plus tard = l'ajouter ici.
@@ -17,11 +18,14 @@ export const toolDeclarations: OpenAI.Chat.ChatCompletionTool[] = [
   readFileDeclaration,
   listDirDeclaration,
   writeFileDeclaration,
+  runCommandDeclaration,
 ];
 
 // Le "dispatch" : à partir du nom + des arguments JSON demandés par le LLM,
 // exécute la vraie fonction. Seul endroit qui traduit "nom demandé" -> "code réel".
-export function executeTool(name: string, argsJson: string): string {
+// Asynchrone : run_command doit attendre une confirmation humaine (stdin) avant
+// de s'exécuter, donc tous les outils passent par le même contrat async ici.
+export async function executeTool(name: string, argsJson: string): Promise<string> {
   let args: Record<string, unknown>;
   try {
     args = argsJson ? JSON.parse(argsJson) : {};
@@ -40,6 +44,8 @@ export function executeTool(name: string, argsJson: string): string {
       return runListDir(args as { path?: string });
     case "write_file":
       return runWriteFile(args as { path: string; content: string; overwrite?: boolean });
+    case "run_command":
+      return runCommand(args as { command: string });
     default:
       return `Erreur: outil inconnu "${name}"`;
   }

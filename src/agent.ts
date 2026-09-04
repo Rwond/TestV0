@@ -69,7 +69,7 @@ export async function runAgent(userMessage: string): Promise<string> {
     // On exécute réellement chaque outil demandé, et on ajoute chaque résultat
     // comme un message "tool" séparé (convention OpenAI, un par tool_call.id).
     for (const call of message.tool_calls) {
-      const output = executeTool(call.function.name, call.function.arguments);
+      const output = await executeTool(call.function.name, call.function.arguments);
       console.log(`[agent]   -> "${call.function.name}" a renvoyé ${output.length} caractères`);
       messages.push({
         role: "tool",
