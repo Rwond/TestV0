@@ -1,78 +1,84 @@
-import type { Content, GenerateContentParameters } from "@google/genai";
-import { ai, MODEL } from "./gemini.js";
+import type OpenAI from "openai";
+import { ai, MODEL } from "./openrouter.js";
 import { toolDeclarations, executeTool } from "./tools/index.js";
 
-// Garde-fou : si jamais Gemini redemande des outils indéfiniment, on arrête
+// Garde-fou : si jamais le LLM redemande des outils indéfiniment, on arrête
 // après N allers-retours plutôt que de boucler à l'infini (et de payer/dépenser
 // des appels API pour rien).
 const MAX_TURNS = 5;
 
-// L'API Gemini (surtout le tier gratuit) répond parfois "503 UNAVAILABLE" en cas
-// de forte demande — une erreur transitoire, pas un bug. On réessaie quelques
-// fois avec un court délai avant d'abandonner, plutôt que de planter direct.
-async function generateWithRetry(params: GenerateContentParameters, retries = 2) {
+// GLM-4.6 est un modèle "raisonneur" : il consomme des tokens de réflexion
+// avant de répondre. Un max_tokens trop bas coupe la réponse en plein milieu.
+// ⚠️ Le compte OpenRouter utilisé ici a un solde très limité (facturé à l'usage,
+// pas gratuit) : une valeur trop haute fait échouer l'appel avec une erreur 402
+// "requires more credits". Ajuste ce chiffre à la hausse une fois le compte crédité.
+const MAX_TOKENS = 400;
+
+// OpenRouter (comme l'API OpenAI) répond parfois par une erreur transitoire en
+// cas de forte demande sur le modèle. On réessaie quelques fois avec un court
+// délai avant d'abandonner, plutôt que de planter direct.
+async function chatWithRetry(
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+  retries = 2
+): Promise<OpenAI.Chat.ChatCompletion> {
   for (let attempt = 1; attempt <= retries + 1; attempt++) {
     try {
-      return await ai.models.generateContent(params);
+      return await ai.chat.completions.create({
+        model: MODEL,
+        messages,
+        tools: toolDeclarations,
+        max_tokens: MAX_TOKENS,
+      });
     } catch (err) {
       const status = (err as { status?: number })?.status;
-      const isRetryable = status === 503 || status === 429;
+      const isRetryable = status === 503 || status === 429 || status === 500;
       const isLastAttempt = attempt === retries + 1;
 
       if (!isRetryable || isLastAttempt) throw err;
 
-      console.log(`[agent] API Gemini indisponible (tentative ${attempt}/${retries + 1}), nouvel essai dans ${attempt}s...`);
+      console.log(`[agent] API indisponible (tentative ${attempt}/${retries + 1}), nouvel essai dans ${attempt}s...`);
       await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
     }
   }
-  // Inatteignable (la boucle throw ou return à chaque itération), mais TypeScript
-  // veut une valeur de retour explicite sur tous les chemins.
-  throw new Error("generateWithRetry: aucune tentative n'a abouti");
+  throw new Error("chatWithRetry: aucune tentative n'a abouti");
 }
 
 export async function runAgent(userMessage: string): Promise<string> {
   // L'historique complet de la conversation. On le fait grossir à chaque tour.
-  const contents: Content[] = [{ role: "user", parts: [{ text: userMessage }] }];
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    { role: "user", content: userMessage },
+  ];
 
   for (let turn = 1; turn <= MAX_TURNS; turn++) {
-    const response = await generateWithRetry({
-      model: MODEL,
-      contents,
-      config: { tools: [{ functionDeclarations: toolDeclarations }] },
-    });
+    const response = await chatWithRetry(messages);
+    const message = response.choices[0].message;
 
-    const calls = response.functionCalls;
-
-    // Cas de sortie : Gemini a répondu en texte, pas en demande d'outil.
+    // Cas de sortie : le LLM a répondu en texte, pas en demande d'outil.
     // La boucle s'arrête ici.
-    if (!calls || calls.length === 0) {
-      return response.text ?? "(réponse vide)";
+    if (!message.tool_calls || message.tool_calls.length === 0) {
+      return message.content ?? "(réponse vide)";
     }
 
     console.log(
-      `\n[agent] tour ${turn} : Gemini demande -> ${calls.map((c) => c.name).join(", ")}`
+      `\n[agent] tour ${turn} : le LLM demande -> ${message.tool_calls.map((c) => c.function.name).join(", ")}`
     );
 
-    // On rejoue exactement le tour "model" (texte éventuel + demandes d'outils)
-    // dans l'historique, pour que Gemini se souvienne de ce qu'il a demandé.
-    const modelParts = response.candidates?.[0]?.content?.parts ?? [];
-    contents.push({ role: "model", parts: modelParts });
+    // On rejoue exactement le tour "assistant" (texte éventuel + demandes
+    // d'outils) dans l'historique, pour que le modèle se souvienne de ce
+    // qu'il a demandé — l'API OpenAI l'exige tel quel avant les tool_result.
+    messages.push(message);
 
-    // On exécute réellement chaque outil demandé, et on construit les résultats.
-    const resultParts = calls.map((call) => {
-      const output = executeTool(call);
-      console.log(`[agent]   -> "${call.name}" a renvoyé ${output.length} caractères`);
-      return {
-        functionResponse: {
-          name: call.name,
-          response: { output },
-        },
-      };
-    });
-
-    // Les résultats sont renvoyés comme un tour "user" (convention de l'API Gemini
-    // pour les functionResponse), pour que Gemini les lise au prochain appel.
-    contents.push({ role: "user", parts: resultParts });
+    // On exécute réellement chaque outil demandé, et on ajoute chaque résultat
+    // comme un message "tool" séparé (convention OpenAI, un par tool_call.id).
+    for (const call of message.tool_calls) {
+      const output = executeTool(call.function.name, call.function.arguments);
+      console.log(`[agent]   -> "${call.function.name}" a renvoyé ${output.length} caractères`);
+      messages.push({
+        role: "tool",
+        tool_call_id: call.id,
+        content: output,
+      });
+    }
   }
 
   return "(nombre maximum d'allers-retours atteint sans réponse finale)";

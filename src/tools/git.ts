@@ -1,21 +1,24 @@
 import { execFileSync } from "node:child_process";
-import { Type, type FunctionDeclaration } from "@google/genai";
+import type OpenAI from "openai";
 
-// Ceci ne fait qu'une chose : DÉCRIRE l'outil à Gemini.
-// Ça ne contient encore aucun code qui exécute réellement "git diff".
-export const gitDiffDeclaration: FunctionDeclaration = {
-  name: "git_diff",
-  description:
-    "Affiche les différences (diff) non commitées du dépôt git courant. " +
-    "Utilise cet outil pour voir ce qui a changé dans le code avant de proposer un résumé ou un message de commit.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      cached: {
-        type: Type.BOOLEAN,
-        description:
-          "true = montre les changements déjà ajoutés avec 'git add' (staged). " +
-          "false = montre les changements non ajoutés (unstaged). Par défaut: false.",
+// Ceci ne fait qu'une chose : DÉCRIRE l'outil au LLM (format OpenAI "tool calling",
+// utilisé par OpenRouter). Ça ne contient encore aucun code qui exécute "git diff".
+export const gitDiffDeclaration: OpenAI.Chat.ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "git_diff",
+    description:
+      "Affiche les différences (diff) non commitées du dépôt git courant. " +
+      "Utilise cet outil pour voir ce qui a changé dans le code avant de proposer un résumé ou un message de commit.",
+    parameters: {
+      type: "object",
+      properties: {
+        cached: {
+          type: "boolean",
+          description:
+            "true = montre les changements déjà ajoutés avec 'git add' (staged). " +
+            "false = montre les changements non ajoutés (unstaged). Par défaut: false.",
+        },
       },
     },
   },
@@ -43,17 +46,20 @@ export function runGitDiff(args: { cached?: boolean }): string {
 }
 
 // Même schéma que gitDiffDeclaration : décrire l'outil, pas encore l'exécuter.
-export const gitLogDeclaration: FunctionDeclaration = {
-  name: "git_log",
-  description:
-    "Liste les derniers commits du dépôt git courant (hash court + message), du plus récent au plus ancien. " +
-    "Utilise cet outil pour résumer l'historique récent des commits.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      count: {
-        type: Type.NUMBER,
-        description: "Nombre de commits à afficher. Par défaut: 5.",
+export const gitLogDeclaration: OpenAI.Chat.ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "git_log",
+    description:
+      "Liste les derniers commits du dépôt git courant (hash court + message), du plus récent au plus ancien. " +
+      "Utilise cet outil pour résumer l'historique récent des commits.",
+    parameters: {
+      type: "object",
+      properties: {
+        count: {
+          type: "number",
+          description: "Nombre de commits à afficher. Par défaut: 5.",
+        },
       },
     },
   },

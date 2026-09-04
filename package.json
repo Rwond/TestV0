@@ -1,7 +1,7 @@
 {
-  "name": "newworld",
+  "name": "hometaskai",
   "version": "1.0.0",
-  "description": "Agent IA personnel - V0 : agent local avec tool calling Git",
+  "description": "HomeTaskAI - agent IA personnel : agent local avec tool calling Git (V0/V1)",
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
@@ -16,7 +16,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "@google/genai": "^2.19.0",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "openai": "^7.10.0"
   }
 }

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve, relative, isAbsolute } from "node:path";
-import { Type, type FunctionDeclaration } from "@google/genai";
+import type OpenAI from "openai";
 
 // Racine autorisée : le dossier du projet lui-même. Aucun outil "fichiers"
 // ne doit pouvoir sortir de ce dossier (pas d'accès à .env d'un autre projet,
@@ -23,20 +23,23 @@ function resolveSafePath(requestedPath: string): string {
   return absolute;
 }
 
-export const readFileDeclaration: FunctionDeclaration = {
-  name: "read_file",
-  description:
-    "Lit le contenu texte d'un fichier du projet. Le chemin doit être relatif à la racine du projet " +
-    "(ex: 'src/index.ts'), jamais un chemin absolu ni un chemin en dehors du projet.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      path: {
-        type: Type.STRING,
-        description: "Chemin relatif du fichier à lire, ex: 'src/agent.ts'.",
+export const readFileDeclaration: OpenAI.Chat.ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "read_file",
+    description:
+      "Lit le contenu texte d'un fichier du projet. Le chemin doit être relatif à la racine du projet " +
+      "(ex: 'src/index.ts'), jamais un chemin absolu ni un chemin en dehors du projet.",
+    parameters: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Chemin relatif du fichier à lire, ex: 'src/agent.ts'.",
+        },
       },
+      required: ["path"],
     },
-    required: ["path"],
   },
 };
 
