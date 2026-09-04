@@ -9,10 +9,18 @@ async function main() {
 
   console.log(`> ${userMessage}`);
 
-  const answer = await runAgent(userMessage);
-
-  console.log("\n=== Réponse finale ===");
-  console.log(answer);
+  try {
+    const answer = await runAgent(userMessage);
+    console.log("\n=== Réponse finale ===");
+    console.log(answer);
+  } catch (err) {
+    // Après toutes les tentatives de generateWithRetry, on affiche un message
+    // compréhensible plutôt qu'une stack trace brute qui plante le process.
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("\n=== Erreur ===");
+    console.error(`L'agent n'a pas pu obtenir de réponse de Gemini : ${message}`);
+    process.exitCode = 1;
+  }
 }
 
 main();
